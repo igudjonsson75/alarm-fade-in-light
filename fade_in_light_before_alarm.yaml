@@ -1,0 +1,85 @@
+
+# Used to disable the automation and stop the fade in script manually
+input_boolean:
+  disable_light_fade_in_with_alarm:
+    name: Disable light fade in with alarm
+    initial: off
+    icon: mdi:alarm-off
+
+# Sensor for how many minutes are to the next alarm. Replace YYYYY with your name and XXXXX with your phone name
+sensor:
+  - platform: template
+    sensors:
+      minutes_next_alarm_YYYYY:
+        friendly_name: "Minutes until Next Alarm YYYYY"
+        unit_of_measurement: "m"
+        #entity_id: sensor.time
+        value_template: >-
+          {% set dummy = states("sensor.time") %}
+          {{((states('sensor.XXXXX_next_alarm')|as_timestamp|int - now()|as_timestamp|int)/60)|int}}
+        availability_template: "{{ not is_state('sensor.XXXXX_next_alarm','unavailable') }}"
+        attribute_templates:
+          time: "{{ state_attr('sensor.XXXXX_next_alarm','Local Time') }}"
+
+# Automation to start the fade in light. Automation will start 10 minutes before the alarm on your phone
+# Replace XXXXX with your name. Replace YYYYY with the name in the sensor above. Replace ZZZZZ with your light
+automation:
+  - alias: Fade in light before alarm
+    description: Fade light in before alarm
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.minutes_next_alarm_YYYYY
+        below: 6
+    condition:
+      - condition: state
+        entity_id: person.XXXXX
+        state: home
+      - condition: state
+        entity_id: input_boolean.disable_light_fade_in_with_alarm
+        state: "off"
+    action:
+      - service: light.turn_on
+        data:
+          entity_id: light.ZZZZZ
+          brightness: 1
+      - delay: 00:00:10
+      - service: script.turn_on
+        data: {}
+        entity_id: script.light_fade_in
+    mode: single
+
+# Script to increase the brightness of the light. Here it is increased by 2 in every time it runs every 10 seconds. The time to put the light in 50% takes 11 min 45 sec
+script:
+  light_fade_in:
+    alias: Light fade in
+    sequence:
+      - service: light.turn_on
+        data:
+          brightness:
+            "{{states.light.XXXXX.attributes.brightness |
+            int + 2}}"
+          entity_id: light.XXXXX
+      - condition: state
+        entity_id: light.XXXXX
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.disable_light_fade_in_with_alarm
+        state: "off"
+      - delay: 00:00:10
+      - service: script.turn_on
+        data: {}
+        entity_id: script.light_fade_in_repeat
+    mode: restart
+
+# Script to start the light fade in script. It will stop running when the brightness reaches 128 (50%)
+  light_fade_in_repeat:
+    alias: Light fade in - repeat
+    sequence:
+      - condition: template
+        value_template:
+          "{{states.light.master_bedroom_lamp.attributes.brightness
+          < 128}}"
+      - service: script.turn_on
+        data: {}
+        entity_id: script.light_fade_in
+    mode: restart
