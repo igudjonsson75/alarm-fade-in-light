@@ -7,6 +7,7 @@ input_boolean:
     icon: mdi:alarm-off
 
 # Sensor for how many minutes are to the next alarm. Replace YYYYY with your name and XXXXX with your phone name
+# in my case the the time of the next alarm sensor is 5 minutes ahead of the actual alarm
 sensor:
   - platform: template
     sensors:
